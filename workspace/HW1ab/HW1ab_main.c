@@ -43,7 +43,7 @@ uint16_t LEDdisplaynum = 0;
 float sinvalue = 0;
 float time = 0;
 float ampl = 3.0;
-float frequency = 0.5;
+float frequency = 0.05;
 float offset = 0.25;
 int32_t timeint = 0;
 float satvalue = 0;
@@ -306,7 +306,7 @@ void main(void)
             time = timeint * 0.25;
             sinvalue = ampl * sin(2*PI*frequency*time) + offset;
             satvalue = saturate(sinvalue, 2.65);
-            serial_printf(&SerialA, "timeint: %d, time: %.2f, sinvalue: %.3f, satvalue: %.2f", timeint, time, sinvalue, satvalue);
+            serial_printf(&SerialA, "timeint: %d, time: %.2f, sinvalue: %.3f, satvalue: %.2f\r\n", timeint, time, sinvalue, satvalue);
             UARTPrint = 0; // Set to 0 to restart the loop and toggle it in a periodic manner
         }
     }
@@ -346,7 +346,7 @@ __interrupt void cpu_timer0_isr(void)
 //    }
 
     if ((numTimer0calls%250) == 0) {
-        displayLEDletter(LEDdisplaynum);
+        //displayLEDletter(LEDdisplaynum);
         LEDdisplaynum++;
         if (LEDdisplaynum == 0xFFFF) {  // prevent roll over exception
             LEDdisplaynum = 0;
@@ -363,7 +363,7 @@ __interrupt void cpu_timer0_isr(void)
 // cpu_timer1_isr - CPU Timer1 ISR
 __interrupt void cpu_timer1_isr(void)
 {
-
+    /*
     // Sets all LEDs to off when pushbutton 4 pressed
     if (GpioDataRegs.GPADAT.bit.GPIO7 == 0) {
         GpioDataRegs.GPACLEAR.bit.GPIO22 = 1;
@@ -442,7 +442,7 @@ __interrupt void cpu_timer1_isr(void)
         GpioDataRegs.GPESET.bit.GPIO158 = 1;
         GpioDataRegs.GPESET.bit.GPIO159 = 1;
         GpioDataRegs.GPFSET.bit.GPIO160 = 1;
-    }
+    }*/
     CpuTimer1.InterruptCount++;
 }
 
@@ -454,20 +454,30 @@ __interrupt void cpu_timer2_isr(void)
     GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1;
 
     //Toggle LEDs 11 and 12
-    //GpioDataRegs.GPATOGGLE.bit.GPIO27 = 1;
-    //GpioDataRegs.GPBTOGGLE.bit.GPIO60 = 1;
+    GpioDataRegs.GPATOGGLE.bit.GPIO27 = 1;
+    GpioDataRegs.GPBTOGGLE.bit.GPIO60 = 1;
 
     CpuTimer2.InterruptCount++; //4823 / 4 = 1205.75 seconds (since its called 4 times per second)
 
-    if ((CpuTimer2.InterruptCount % 50) == 0) {
-        if (GpioDataRegs.GPADAT.bit.GPIO4 == 0) {
-            GpioDataRegs.GPBTOGGLE.bit.GPIO61 = 1;
-            GpioDataRegs.GPETOGGLE.bit.GPIO157 = 1;
-        }
-        if (GpioDataRegs.GPADAT.bit.GPIO7 == 0) {
-            GpioDataRegs.GPETOGGLE.bit.GPIO158 = 1;
-            GpioDataRegs.GPETOGGLE.bit.GPIO159 = 1;
-        }
+    if (GpioDataRegs.GPADAT.bit.GPIO4 == 0) {
+        GpioDataRegs.GPBSET.bit.GPIO61 = 1;
+        GpioDataRegs.GPESET.bit.GPIO157 = 1;
+    }
+    else {
+        GpioDataRegs.GPBCLEAR.bit.GPIO61 = 1;
+        GpioDataRegs.GPECLEAR.bit.GPIO157 = 1;
+    }
+    if (GpioDataRegs.GPADAT.bit.GPIO7 == 0) {
+        GpioDataRegs.GPESET.bit.GPIO158 = 1;
+        GpioDataRegs.GPESET.bit.GPIO159 = 1;
+    }
+    else {
+        GpioDataRegs.GPECLEAR.bit.GPIO158 = 1;
+        GpioDataRegs.GPECLEAR.bit.GPIO159 = 1;
+    }
+
+    if ((CpuTimer2.InterruptCount % 3) == 0) {
+
         UARTPrint = 1;
     }
 
