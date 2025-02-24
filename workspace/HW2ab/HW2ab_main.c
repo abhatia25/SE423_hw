@@ -451,18 +451,11 @@ __interrupt void ADCA_ISR (void)
 
     EPwm12Regs.CMPA.bit.CMPA = (pr_scaled_reading / 3.3) * EPwm12Regs.TBPRD;
 
-    /*GpioDataRegs.GPCCLEAR.bit.GPIO95 = 1;
-    GpioDataRegs.GPECLEAR.bit.GPIO130 = 1;
-    GpioDataRegs.GPACLEAR.bit.GPIO25 = 1;
-    GpioDataRegs.GPACLEAR.bit.GPIO27 = 1;
-    GpioDataRegs.GPECLEAR.bit.GPIO157 = 1;*/
-
     // Print ADCINA4’s voltage value to TeraTerm every 100ms by setting UARTPrint to one every 100th
     //time in this function.
     adcaCalls++;
     if (adcaCalls % 100 == 0){
         UARTPrint = 1;
-        //GpioDataRegs.GPACLEAR.bit.GPIO25 = 1;
         GpioDataRegs.GPCCLEAR.bit.GPIO95 = 1;
         GpioDataRegs.GPECLEAR.bit.GPIO130 = 1;
         GpioDataRegs.GPACLEAR.bit.GPIO25 = 1;
