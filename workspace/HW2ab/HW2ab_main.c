@@ -450,11 +450,50 @@ __interrupt void ADCA_ISR (void)
     y_scaled_reading = y_raw_reading * (3.0/4096.0);
 
     EPwm12Regs.CMPA.bit.CMPA = (pr_scaled_reading / 3.3) * EPwm12Regs.TBPRD;
+
+    /*GpioDataRegs.GPCCLEAR.bit.GPIO95 = 1;
+    GpioDataRegs.GPECLEAR.bit.GPIO130 = 1;
+    GpioDataRegs.GPACLEAR.bit.GPIO25 = 1;
+    GpioDataRegs.GPACLEAR.bit.GPIO27 = 1;
+    GpioDataRegs.GPECLEAR.bit.GPIO157 = 1;*/
+
     // Print ADCINA4’s voltage value to TeraTerm every 100ms by setting UARTPrint to one every 100th
     //time in this function.
     adcaCalls++;
     if (adcaCalls % 100 == 0){
         UARTPrint = 1;
+        //GpioDataRegs.GPACLEAR.bit.GPIO25 = 1;
+        GpioDataRegs.GPCCLEAR.bit.GPIO95 = 1;
+        GpioDataRegs.GPECLEAR.bit.GPIO130 = 1;
+        GpioDataRegs.GPACLEAR.bit.GPIO25 = 1;
+        GpioDataRegs.GPACLEAR.bit.GPIO27 = 1;
+        GpioDataRegs.GPECLEAR.bit.GPIO157 = 1;
+
+        if (x_scaled_reading < 0.5){
+            //turn on LED 10
+            GpioDataRegs.GPASET.bit.GPIO27 = 1;
+        }
+        else if (x_scaled_reading > 2.5){
+            //turn on LED 6
+            GpioDataRegs.GPESET.bit.GPIO130 = 1;
+        }
+        else {
+            //turn on LED 8
+            GpioDataRegs.GPASET.bit.GPIO25 = 1;
+        }
+
+        if (y_scaled_reading < 0.5){
+            //turn on LED 13
+            GpioDataRegs.GPESET.bit.GPIO157 = 1;
+        }
+        else if (y_scaled_reading > 2.5){
+            //turn on LED 3
+            GpioDataRegs.GPCSET.bit.GPIO95 = 1;
+        }
+        else {
+            //turn on LED 8
+            GpioDataRegs.GPASET.bit.GPIO25 = 1;
+        }
     }
     AdcaRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
