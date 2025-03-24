@@ -70,13 +70,16 @@ uint16_t songarray[SONG_LENGTH] = {
                                    E5NOTE,
                                    D4NOTE,
                                    OFFNOTE
-                                   };
+};
 
 // Interrupt Service Routines predefinition
 __interrupt void cpu_timer0_isr(void);
 __interrupt void cpu_timer1_isr(void);
 __interrupt void cpu_timer2_isr(void);
 __interrupt void SWI_isr(void);
+__interrupt void SPIB_isr(void);
+
+void setupSpib(void);
 
 // Count variables
 uint32_t numTimer0calls = 0;
@@ -85,6 +88,24 @@ extern uint32_t numRXA;
 uint16_t UARTPrint = 0;
 uint16_t LEDdisplaynum = 0;
 uint16_t songLocation = 0;
+uint32_t numSPIcalls = 0;
+
+int16_t spivalue1 = 0;
+int16_t spivalue2 = 0;
+int16_t dummy = 0;
+int16_t gyroZraw = 0;
+int16_t gyroXraw = 0;
+int16_t gyroYraw = 0;
+int16_t accelXraw = 0;
+int16_t accelYraw = 0;
+int16_t accelZraw = 0;
+float gyroXreading = 0;
+float gyroYreading = 0;
+float gyroZreading = 0;
+float accelXreading = 0;
+float accelYreading = 0;
+float accelZreading = 0;
+int16_t temp = 0;
 
 void main(void)
 {
@@ -283,7 +304,7 @@ void main(void)
     PieVectTable.SCIB_TX_INT = &TXBINT_data_sent;
     PieVectTable.SCIC_TX_INT = &TXCINT_data_sent;
     PieVectTable.SCID_TX_INT = &TXDINT_data_sent;
-
+    PieVectTable.SPIB_RX_INT = &SPIB_isr;
     PieVectTable.EMIF_ERROR_INT = &SWI_isr;
     EDIS;    // This is needed to disable write to EALLOW protected registers
 
@@ -294,7 +315,7 @@ void main(void)
 
     // Configure CPU-Timer 0, 1, and 2 to interrupt every given period:
     // 200MHz CPU Freq,                       Period (in uSeconds)
-    ConfigCpuTimer(&CpuTimer0, LAUNCHPAD_CPU_FREQUENCY, 10000);
+    ConfigCpuTimer(&CpuTimer0, LAUNCHPAD_CPU_FREQUENCY, 1000);
     ConfigCpuTimer(&CpuTimer1, LAUNCHPAD_CPU_FREQUENCY, 125000);
     ConfigCpuTimer(&CpuTimer2, LAUNCHPAD_CPU_FREQUENCY, 4000);
 
@@ -306,6 +327,8 @@ void main(void)
     init_serialSCIA(&SerialA,115200);
     //    init_serialSCIC(&SerialC,115200);
     //    init_serialSCID(&SerialD,115200);
+
+    setupSpib();
 
     EPwm9Regs.TBCTL.bit.CTRMODE = 0;
     EPwm9Regs.TBCTL.bit.FREE_SOFT = 3;
@@ -322,6 +345,7 @@ void main(void)
     // which is connected to CPU-Timer 1, and CPU int 14, which is connected
     // to CPU-Timer 2:  int 12 is for the SWI.  
     IER |= M_INT1;
+    IER |= M_INT6; //SPIB
     IER |= M_INT8;  // SCIC SCID
     IER |= M_INT9;  // SCIA
     IER |= M_INT12;
@@ -332,6 +356,8 @@ void main(void)
     PieCtrlRegs.PIEIER1.bit.INTx7 = 1;
     // Enable SWI in the PIE: Group 12 interrupt 9
     PieCtrlRegs.PIEIER12.bit.INTx9 = 1;
+    // Enable SPIB
+    PieCtrlRegs.PIEIER6.bit.INTx3 = 1;
 
     // Enable global Interrupts and higher priority real-time debug events
     EINT;  // Enable Global interrupt INTM
@@ -342,7 +368,7 @@ void main(void)
     while(1)
     {
         if (UARTPrint == 1 ) {
-            serial_printf(&SerialA,"Num Timer2:%ld Num SerialRX: %ld\r\n",CpuTimer2.InterruptCount,numRXA);
+            serial_printf(&SerialA,"GyroX: %.2f GyroY: %.2f GyroZ: %.2f\r\nAccelX: %.2f AccelY: %.2f AccelZ: %.2f\r\n", gyroXreading, gyroYreading, gyroZreading, accelXreading, accelYreading, accelZreading);
             UARTPrint = 0;
         }
     }
@@ -380,7 +406,7 @@ __interrupt void cpu_timer0_isr(void)
     //        PieCtrlRegs.PIEIFR12.bit.INTx9 = 1;  // Manually cause the interrupt for the SWI
     //    }
 
-    if ((numTimer0calls%250) == 0) {
+    /*if ((numTimer0calls%250) == 0) {
         displayLEDletter(LEDdisplaynum);
         LEDdisplaynum++;
         if (LEDdisplaynum == 0xFFFF) {  // prevent roll over exception
@@ -389,7 +415,19 @@ __interrupt void cpu_timer0_isr(void)
     }
 
     // Blink LaunchPad Red LED
-    GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
+    GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;*/
+
+    //Clear GPIO66 Low to act as a Slave Select. Right now, just to scope. Later to select MPU9250 chip
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPIFFRX.bit.RXFFIL = 8; // Issue the SPIB_RX_INT when two values are in the RX FIFO
+    SpibRegs.SPITXBUF = (0x8000 | 0x3A00);
+    SpibRegs.SPITXBUF = 0x0000;
+    SpibRegs.SPITXBUF = 0x0000;
+    SpibRegs.SPITXBUF = 0x0000;
+    SpibRegs.SPITXBUF = 0x0000;
+    SpibRegs.SPITXBUF = 0x0000;
+    SpibRegs.SPITXBUF = 0x0000;
+    SpibRegs.SPITXBUF = 0x0000;
 
     // Acknowledge this interrupt to receive more interrupts from group 1
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
@@ -398,12 +436,12 @@ __interrupt void cpu_timer0_isr(void)
 // cpu_timer1_isr - CPU Timer1 ISR
 __interrupt void cpu_timer1_isr(void)
 {
-    EPwm9Regs.TBPRD = songarray[songLocation];
+    /*EPwm9Regs.TBPRD = songarray[songLocation];
     songLocation++;
     if ((songLocation + 1) > SONG_LENGTH){
         GPIO_SetupPinMux(16, GPIO_MUX_CPU1, 0);
         GpioDataRegs.GPASET.bit.GPIO16 = 0;
-    }
+    }*/
 
     CpuTimer1.InterruptCount++;
 }
@@ -418,6 +456,217 @@ __interrupt void cpu_timer2_isr(void)
     CpuTimer2.InterruptCount++;
 
     if ((CpuTimer2.InterruptCount % 50) == 0) {
+        //UARTPrint = 1;
+    }
+}
+
+__interrupt void SPIB_isr(void){
+    numSPIcalls++;
+    //spivalue1 = SpibRegs.SPIRXBUF; // Read first 16 bit value off RX FIFO
+    //spivalue2 = SpibRegs.SPIRXBUF; // Read second 16 bit value off RX FIFO
+    //gyroz_raw = spivalue2;
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1; // Set GPIO 66 high to end Slave Select. Now to Scope. Later to deselect MPU9250.
+
+    dummy = SpibRegs.SPIRXBUF;
+    gyroXraw = SpibRegs.SPIRXBUF;
+    gyroYraw = SpibRegs.SPIRXBUF;
+    gyroZraw = SpibRegs.SPIRXBUF;
+
+    dummy = SpibRegs.SPIRXBUF;
+
+    accelXraw = SpibRegs.SPIRXBUF;
+    accelYraw = SpibRegs.SPIRXBUF;
+    accelZraw = SpibRegs.SPIRXBUF;
+
+    gyroXreading = gyroXraw * 250.0/32767.0;
+    gyroYreading = gyroYraw * 250.0/32767.0;
+    gyroZreading = gyroZraw * 250.0/32767.0;
+
+    accelXreading = accelXraw * 4.0/32767.0;
+    accelYreading = accelYraw * 4.0/32767.0;
+    accelZreading = accelZraw * 4.0/32767.0;
+
+    if((numSPIcalls % 100) == 0){
         UARTPrint = 1;
     }
+
+    SpibRegs.SPIFFRX.bit.RXFFOVFCLR = 1; // Clear Overflow flag just in case of an overflow
+    SpibRegs.SPIFFRX.bit.RXFFINTCLR = 1; // Clear RX FIFO Interrupt flag so next interrupt will happen
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP6; // Acknowledge INT6 PIE interrupt
+}
+
+void setupSpib(void){
+    GPIO_SetupPinMux(66, GPIO_MUX_CPU1, 0); // Set as GPIO66 and used as MPU-9250 SS
+    GPIO_SetupPinOptions(66, GPIO_OUTPUT, GPIO_PUSHPULL); // Make GPIO66 an Output Pin
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1; //Initially Set GPIO66/SS High so MPU-9250 is not selected
+    GPIO_SetupPinMux(63, GPIO_MUX_CPU1, 15); //Set GPIO63 pin to SPISIMOB
+    GPIO_SetupPinMux(64, GPIO_MUX_CPU1, 15); //Set GPIO64 pin to SPISOMIB
+    GPIO_SetupPinMux(65, GPIO_MUX_CPU1, 15); //Set GPIO65 pin to SPICLKB
+    EALLOW;
+    GpioCtrlRegs.GPBPUD.bit.GPIO63 = 0; // Enable Pull-ups on SPI PINs Recommended by TI for SPI Pins
+    GpioCtrlRegs.GPCPUD.bit.GPIO64 = 0;
+    GpioCtrlRegs.GPCPUD.bit.GPIO65 = 0;
+    GpioCtrlRegs.GPBQSEL2.bit.GPIO63 = 3; // Set I/O pin to asynchronous mode recommended for SPI
+    GpioCtrlRegs.GPCQSEL1.bit.GPIO64 = 3; // Set I/O pin to asynchronous mode recommended for SPI
+    GpioCtrlRegs.GPCQSEL1.bit.GPIO65 = 3; // Set I/O pin to asynchronous mode recommended for SPI
+    EDIS;
+    // ---------------------------------------------------------------------------
+    SpibRegs.SPICCR.bit.SPISWRESET = 0; // Put SPI in Reset
+    SpibRegs.SPICTL.bit.CLK_PHASE = 1; //This happens to be the mode for both the DAN28027 and
+    SpibRegs.SPICCR.bit.CLKPOLARITY = 0; //The MPU-9250, Mode 01.
+    SpibRegs.SPICTL.bit.MASTER_SLAVE = 1; // Set to SPI Master
+    SpibRegs.SPICCR.bit.SPICHAR = 15; // Set to transmit and receive 16 bits each write to SPITXBUF
+    SpibRegs.SPICTL.bit.TALK = 1; // Enable transmission
+    SpibRegs.SPIPRI.bit.FREE = 1; // Free run, continue SPI operation
+    SpibRegs.SPICTL.bit.SPIINTENA = 0; // Disables the SPI interrupt
+    SpibRegs.SPIBRR.bit.SPI_BIT_RATE = 49; // Set SCLK bit rate to 1 MHz so 1us period. SPI base clock is 50MHZ. And this setting divides that base clock to create SCLK’s period
+    SpibRegs.SPISTS.all = 0x0000; // Clear status flags just in case they are set for some reason
+    SpibRegs.SPIFFTX.bit.SPIRST = 1;// Pull SPI FIFO out of reset, SPI FIFO can resume transmit or receive.
+    SpibRegs.SPIFFTX.bit.SPIFFENA = 1; // Enable SPI FIFO enhancements
+    SpibRegs.SPIFFTX.bit.TXFIFO = 0; // Write 0 to reset the FIFO pointer to zero, and hold in reset
+    SpibRegs.SPIFFTX.bit.TXFFINTCLR = 1; // Write 1 to clear SPIFFTX[TXFFINT] flag just in case it is set
+    SpibRegs.SPIFFRX.bit.RXFIFORESET = 0; // Write 0 to reset the FIFO pointer to zero, and hold in reset
+    SpibRegs.SPIFFRX.bit.RXFFOVFCLR = 1; // Write 1 to clear SPIFFRX[RXFFOVF] just in case it is set
+    SpibRegs.SPIFFRX.bit.RXFFINTCLR = 1; // Write 1 to clear SPIFFRX[RXFFINT] flag just in case it is set
+    SpibRegs.SPIFFRX.bit.RXFFIENA = 1; // Enable the RX FIFO Interrupt. RXFFST >= RXFFIL
+    SpibRegs.SPIFFCT.bit.TXDLY = 0; //Set delay between transmits to 0 spi clocks.
+    SpibRegs.SPICCR.bit.SPISWRESET = 1; // Pull the SPI out of reset
+    SpibRegs.SPIFFTX.bit.TXFIFO = 1; // Release transmit FIFO from reset.
+    SpibRegs.SPIFFRX.bit.RXFIFORESET = 1; // Re-enable receive FIFO operation
+    SpibRegs.SPICTL.bit.SPIINTENA = 1; // Enables SPI interrupt. !! I don’t think this is needed. Need to Test
+    SpibRegs.SPIFFRX.bit.RXFFIL = 10; //Interrupt Level to 16 words or more received into FIFO causes interrupt. This is just the initial setting for the register. Will be changed below
+
+    //Perform a multiple 16 bit transfer to initialize MPU-9250 registers 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F. Use only one SS low to high for all these writes
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1; // Slave Select Low
+
+    //Perform the number of needed writes to SPITXBUF to write to all 13 registers. Remember we are sending 16 bit transfers, so two registers at a time after the first 16 bit transfer
+    SpibRegs.SPITXBUF = 0x1300;
+    SpibRegs.SPITXBUF = 0x0000;
+    SpibRegs.SPITXBUF = 0x0000;
+    SpibRegs.SPITXBUF = 0x0013;
+    SpibRegs.SPITXBUF = 0x0200;
+    SpibRegs.SPITXBUF = 0x0806;
+    SpibRegs.SPITXBUF = 0x0000;
+
+    // wait for the correct number of 16 bit values to be received into the RX FIFO
+    while(SpibRegs.SPIFFRX.bit.RXFFST != 7);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1; // Slave Select High
+    temp = SpibRegs.SPIRXBUF;
+    temp = SpibRegs.SPIRXBUF;
+    temp = SpibRegs.SPIRXBUF;
+    temp = SpibRegs.SPIRXBUF;
+    temp = SpibRegs.SPIRXBUF;
+    temp = SpibRegs.SPIRXBUF;
+    temp = SpibRegs.SPIRXBUF;
+    // read the additional number of garbage receive values off the RX FIFO to clear out the RX FIFO
+    DELAY_US(10); // Delay 10us to allow time for the MPU-2950 to get ready for next transfer.
+
+    //Perform a multiple 16 bit transfer to initialize MPU-9250 registers 0x23,0x24,0x25,0x26, 0x27, 0x28, 0x29. Use only one SS low to high for all these writes
+    SpibRegs.SPITXBUF = 0x2300;
+    SpibRegs.SPITXBUF = 0x408C;
+    SpibRegs.SPITXBUF = 0x0288;
+    SpibRegs.SPITXBUF = 0x0C0A;
+
+    // wait for the correct number of 16 bit values to be received into the RX FIFO
+    while(SpibRegs.SPIFFRX.bit.RXFFST != 4);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1; // Slave Select High
+    temp = SpibRegs.SPIRXBUF;
+    temp = SpibRegs.SPIRXBUF;
+    temp = SpibRegs.SPIRXBUF;
+    temp = SpibRegs.SPIRXBUF;
+    // read the additional number of garbage receive values off the RX FIFO to clear out the RX FIFO
+    DELAY_US(10); // Delay 10us to allow time for the MPU-2950 to get ready for next transfer.
+
+    //Perform a single 16 bit transfer to initialize MPU-9250 register 0x2A
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = 0x2A81;
+
+    // wait for one byte to be received
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x3800 | 0x0001); // 0x3800
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x3A00 | 0x0001); // 0x3A00
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x6400 | 0x0001); // 0x6400
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x6700 | 0x0003); // 0x6700
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x6A00 | 0x0020); // 0x6A00
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x6B00 | 0x0001); // 0x6B00
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x7500 | 0x0071); // 0x7500
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x7700 | 0x00EB); // 0x7700
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x7800 | 0x0012); // 0x7800
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x7A00 | 0x0010); // 0x7A00
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x7B00 | 0x00FA); // 0x7B00
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x7D00 | 0x0021); // 0x7D00
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(10);
+    GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
+    SpibRegs.SPITXBUF = (0x7E00 | 0x0050); // 0x7E00
+    while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
+    GpioDataRegs.GPCSET.bit.GPIO66 = 1;
+    temp = SpibRegs.SPIRXBUF;
+    DELAY_US(50);
+    // Clear SPIB interrupt source just in case it was issued due to any of the above initializations.
+    SpibRegs.SPIFFRX.bit.RXFFOVFCLR=1; // Clear Overflow flag
+    SpibRegs.SPIFFRX.bit.RXFFINTCLR=1; // Clear Interrupt flag
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP6;
 }
