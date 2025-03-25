@@ -49,6 +49,7 @@
 #define OFFNOTE 0
 #define SONG_LENGTH 20
 
+//AB: Notes for custom song for checkoff
 uint16_t songarray[SONG_LENGTH] = {
                                    A4NOTE,
                                    B4NOTE,
@@ -77,8 +78,9 @@ __interrupt void cpu_timer0_isr(void);
 __interrupt void cpu_timer1_isr(void);
 __interrupt void cpu_timer2_isr(void);
 __interrupt void SWI_isr(void);
-__interrupt void SPIB_isr(void);
 
+//AB: New functions added for this homework
+__interrupt void SPIB_isr(void);
 void setupSpib(void);
 
 // Count variables
@@ -304,7 +306,7 @@ void main(void)
     PieVectTable.SCIB_TX_INT = &TXBINT_data_sent;
     PieVectTable.SCIC_TX_INT = &TXCINT_data_sent;
     PieVectTable.SCID_TX_INT = &TXDINT_data_sent;
-    PieVectTable.SPIB_RX_INT = &SPIB_isr;
+    PieVectTable.SPIB_RX_INT = &SPIB_isr; //AB: added to setup SPI interrupt function
     PieVectTable.EMIF_ERROR_INT = &SWI_isr;
     EDIS;    // This is needed to disable write to EALLOW protected registers
 
@@ -345,7 +347,7 @@ void main(void)
     // which is connected to CPU-Timer 1, and CPU int 14, which is connected
     // to CPU-Timer 2:  int 12 is for the SWI.  
     IER |= M_INT1;
-    IER |= M_INT6; //SPIB
+    IER |= M_INT6; //AB: Enable SPIB
     IER |= M_INT8;  // SCIC SCID
     IER |= M_INT9;  // SCIA
     IER |= M_INT12;
@@ -356,7 +358,7 @@ void main(void)
     PieCtrlRegs.PIEIER1.bit.INTx7 = 1;
     // Enable SWI in the PIE: Group 12 interrupt 9
     PieCtrlRegs.PIEIER12.bit.INTx9 = 1;
-    // Enable SPIB
+    //AB: Enable SPIB
     PieCtrlRegs.PIEIER6.bit.INTx3 = 1;
 
     // Enable global Interrupts and higher priority real-time debug events
@@ -428,6 +430,7 @@ __interrupt void cpu_timer0_isr(void)
     SpibRegs.SPITXBUF = 0x0000;
     SpibRegs.SPITXBUF = 0x0000;
     SpibRegs.SPITXBUF = 0x0000;
+    //AB: Above reads 8 values from SPIB (for the 6 accel + gyro readings + temp + dummy that's discarded)
 
     // Acknowledge this interrupt to receive more interrupts from group 1
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
@@ -436,6 +439,7 @@ __interrupt void cpu_timer0_isr(void)
 // cpu_timer1_isr - CPU Timer1 ISR
 __interrupt void cpu_timer1_isr(void)
 {
+    //AB: Plays song by changing PWM period to the note based on the song array defined at top of file
     /*EPwm9Regs.TBPRD = songarray[songLocation];
     songLocation++;
     if ((songLocation + 1) > SONG_LENGTH){
@@ -467,6 +471,7 @@ __interrupt void SPIB_isr(void){
     //gyroz_raw = spivalue2;
     GpioDataRegs.GPCSET.bit.GPIO66 = 1; // Set GPIO 66 high to end Slave Select. Now to Scope. Later to deselect MPU9250.
 
+    //AB: reads 8 SPIB values discarding the non accel+gyro readings
     dummy = SpibRegs.SPIRXBUF;
     gyroXraw = SpibRegs.SPIRXBUF;
     gyroYraw = SpibRegs.SPIRXBUF;
@@ -478,6 +483,7 @@ __interrupt void SPIB_isr(void){
     accelYraw = SpibRegs.SPIRXBUF;
     accelZraw = SpibRegs.SPIRXBUF;
 
+    //AB: scale accel and gyro readings
     gyroXreading = gyroXraw * 250.0/32767.0;
     gyroYreading = gyroYraw * 250.0/32767.0;
     gyroZreading = gyroZraw * 250.0/32767.0;
@@ -486,6 +492,7 @@ __interrupt void SPIB_isr(void){
     accelYreading = accelYraw * 4.0/32767.0;
     accelZreading = accelZraw * 4.0/32767.0;
 
+    //AB: Print values to TT every 100ms
     if((numSPIcalls % 100) == 0){
         UARTPrint = 1;
     }
@@ -630,37 +637,37 @@ void setupSpib(void){
     temp = SpibRegs.SPIRXBUF;
     DELAY_US(10);
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
-    SpibRegs.SPITXBUF = (0x7700 | 0x00EB); // 0x7700
+    SpibRegs.SPITXBUF = (0x1300 | 0x0001); // 0x7700
     while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
     GpioDataRegs.GPCSET.bit.GPIO66 = 1;
     temp = SpibRegs.SPIRXBUF;
     DELAY_US(10);
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
-    SpibRegs.SPITXBUF = (0x7800 | 0x0012); // 0x7800
+    SpibRegs.SPITXBUF = (0x1400 | 0x0029); // 0x7800
     while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
     GpioDataRegs.GPCSET.bit.GPIO66 = 1;
     temp = SpibRegs.SPIRXBUF;
     DELAY_US(10);
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
-    SpibRegs.SPITXBUF = (0x7A00 | 0x0010); // 0x7A00
+    SpibRegs.SPITXBUF = (0x1500 | 0x0000); // 0x7A00
     while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
     GpioDataRegs.GPCSET.bit.GPIO66 = 1;
     temp = SpibRegs.SPIRXBUF;
     DELAY_US(10);
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
-    SpibRegs.SPITXBUF = (0x7B00 | 0x00FA); // 0x7B00
+    SpibRegs.SPITXBUF = (0x1600 | 0x00A9); // 0x7B00
     while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
     GpioDataRegs.GPCSET.bit.GPIO66 = 1;
     temp = SpibRegs.SPIRXBUF;
     DELAY_US(10);
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
-    SpibRegs.SPITXBUF = (0x7D00 | 0x0021); // 0x7D00
+    SpibRegs.SPITXBUF = (0x1700 | 0x0000); // 0x7D00
     while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
     GpioDataRegs.GPCSET.bit.GPIO66 = 1;
     temp = SpibRegs.SPIRXBUF;
     DELAY_US(10);
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
-    SpibRegs.SPITXBUF = (0x7E00 | 0x0050); // 0x7E00
+    SpibRegs.SPITXBUF = (0x1800 | 0x0015); // 0x7E00
     while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
     GpioDataRegs.GPCSET.bit.GPIO66 = 1;
     temp = SpibRegs.SPIRXBUF;
