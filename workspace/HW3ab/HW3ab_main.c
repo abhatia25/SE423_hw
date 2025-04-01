@@ -370,7 +370,7 @@ void main(void)
     while(1)
     {
         if (UARTPrint == 1 ) {
-            serial_printf(&SerialA,"GyroX: %.2f GyroY: %.2f GyroZ: %.2f\r\nAccelX: %.2f AccelY: %.2f AccelZ: %.2f\r\n", gyroXreading, gyroYreading, gyroZreading, accelXreading, accelYreading, accelZreading);
+            serial_printf(&SerialA,"GyroX: %.2f GyroY: %.2f GyroZ: %.2f AccelX: %.2f AccelY: %.2f AccelZ: %.2f\r\n", gyroXreading, gyroYreading, gyroZreading, accelXreading, accelYreading, accelZreading);
             UARTPrint = 0;
         }
     }
@@ -473,15 +473,16 @@ __interrupt void SPIB_isr(void){
 
     //AB: reads 8 SPIB values discarding the non accel+gyro readings
     dummy = SpibRegs.SPIRXBUF;
-    gyroXraw = SpibRegs.SPIRXBUF;
-    gyroYraw = SpibRegs.SPIRXBUF;
-    gyroZraw = SpibRegs.SPIRXBUF;
-
-    dummy = SpibRegs.SPIRXBUF;
 
     accelXraw = SpibRegs.SPIRXBUF;
     accelYraw = SpibRegs.SPIRXBUF;
     accelZraw = SpibRegs.SPIRXBUF;
+
+    dummy = SpibRegs.SPIRXBUF;
+
+    gyroXraw = SpibRegs.SPIRXBUF;
+    gyroYraw = SpibRegs.SPIRXBUF;
+    gyroZraw = SpibRegs.SPIRXBUF;
 
     //AB: scale accel and gyro readings
     gyroXreading = gyroXraw * 250.0/32767.0;
@@ -637,37 +638,37 @@ void setupSpib(void){
     temp = SpibRegs.SPIRXBUF;
     DELAY_US(10);
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
-    SpibRegs.SPITXBUF = (0x1300 | 0x0001); // 0x7700
+    SpibRegs.SPITXBUF = (0x7700 | 0x00E5); // 0x7700
     while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
     GpioDataRegs.GPCSET.bit.GPIO66 = 1;
     temp = SpibRegs.SPIRXBUF;
     DELAY_US(10);
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
-    SpibRegs.SPITXBUF = (0x1400 | 0x0029); // 0x7800
+    SpibRegs.SPITXBUF = (0x7800 | 0x000C); // 0x7800
     while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
     GpioDataRegs.GPCSET.bit.GPIO66 = 1;
     temp = SpibRegs.SPIRXBUF;
     DELAY_US(10);
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
-    SpibRegs.SPITXBUF = (0x1500 | 0x0000); // 0x7A00
+    SpibRegs.SPITXBUF = (0x7A00 | 0x00EE); // 0x7A00
     while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
     GpioDataRegs.GPCSET.bit.GPIO66 = 1;
     temp = SpibRegs.SPIRXBUF;
     DELAY_US(10);
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
-    SpibRegs.SPITXBUF = (0x1600 | 0x00A9); // 0x7B00
+    SpibRegs.SPITXBUF = (0x7B00 | 0x0004); // 0x7B00
     while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
     GpioDataRegs.GPCSET.bit.GPIO66 = 1;
     temp = SpibRegs.SPIRXBUF;
     DELAY_US(10);
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
-    SpibRegs.SPITXBUF = (0x1700 | 0x0000); // 0x7D00
+    SpibRegs.SPITXBUF = (0x7D00 | 0x0020); // 0x7D00
     while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
     GpioDataRegs.GPCSET.bit.GPIO66 = 1;
     temp = SpibRegs.SPIRXBUF;
     DELAY_US(10);
     GpioDataRegs.GPCCLEAR.bit.GPIO66 = 1;
-    SpibRegs.SPITXBUF = (0x1800 | 0x0015); // 0x7E00
+    SpibRegs.SPITXBUF = (0x7E00 | 0x0098); // 0x7E00
     while(SpibRegs.SPIFFRX.bit.RXFFST !=1);
     GpioDataRegs.GPCSET.bit.GPIO66 = 1;
     temp = SpibRegs.SPIRXBUF;
