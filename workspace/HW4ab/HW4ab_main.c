@@ -33,6 +33,9 @@ __interrupt void cpu_timer1_isr(void);
 __interrupt void cpu_timer2_isr(void);
 __interrupt void SWI_isr(void);
 
+void setEPWM8A_RCServo(float);
+void setEPWM8B_RCServo(float);
+
 // Count variables
 uint32_t numTimer0calls = 0;
 uint32_t numSWIcalls = 0;
@@ -40,6 +43,35 @@ extern uint32_t numRXA;
 uint16_t UARTPrint = 0;
 uint16_t LEDdisplaynum = 0;
 
+float dutyCycle = 0.0;
+float changingAngle = -90.0;
+int16_t direction = 1;
+
+void setEPWM8A_RCServo(float angle){
+    if (angle > 90){
+        angle = 90;
+    }
+    else if (angle < -90){
+        angle = -90;
+    }
+    else {
+        dutyCycle = ((0.0444*angle + 8)/100)*EPwm8Regs.TBPRD;
+        EPwm8Regs.CMPA.bit.CMPA = dutyCycle;
+    }
+}
+
+void setEPWM8B_RCServo(float angle){
+    if (angle > 90){
+        angle = 90;
+    }
+    else if (angle < -90){
+        angle = -90;
+    }
+    else {
+        dutyCycle = ((0.0444*angle + 8)/100)*EPwm8Regs.TBPRD;
+        EPwm8Regs.CMPB.bit.CMPB = dutyCycle;
+    }
+}
 
 void main(void)
 {
@@ -199,6 +231,8 @@ void main(void)
     GPIO_SetupPinMux(8, GPIO_MUX_CPU1, 0);
     GPIO_SetupPinOptions(8, GPIO_INPUT, GPIO_PULLUP);
 
+    GPIO_SetupPinMux(14, GPIO_MUX_CPU1, 1);
+    GPIO_SetupPinMux(15, GPIO_MUX_CPU1, 1);
     // Clear all interrupts and initialize PIE vector table:
     // Disable CPU interrupts
     DINT;
@@ -247,7 +281,7 @@ void main(void)
     // Configure CPU-Timer 0, 1, and 2 to interrupt every given period:
     // 200MHz CPU Freq,                       Period (in uSeconds)
     ConfigCpuTimer(&CpuTimer0, LAUNCHPAD_CPU_FREQUENCY, 10000);
-    ConfigCpuTimer(&CpuTimer1, LAUNCHPAD_CPU_FREQUENCY, 20000);
+    ConfigCpuTimer(&CpuTimer1, LAUNCHPAD_CPU_FREQUENCY, 10000);
     ConfigCpuTimer(&CpuTimer2, LAUNCHPAD_CPU_FREQUENCY, 40000);
 
     // Enable CpuTimer Interrupt bit TIE
@@ -262,9 +296,9 @@ void main(void)
     EPwm8Regs.TBCTL.bit.CTRMODE = 0;
     EPwm8Regs.TBCTL.bit.FREE_SOFT = 3;
     EPwm8Regs.TBCTL.bit.PHSEN = 0;
-    EPwm8Regs.TBCTL.bit.CLKDIV = 1;
+    EPwm8Regs.TBCTL.bit.CLKDIV = 4;
     EPwm8Regs.TBCTR = 0;
-    EPwm8Regs.TBPRD = 50000;
+    EPwm8Regs.TBPRD = 62500;
     EPwm8Regs.CMPA.bit.CMPA = 2000;
     EPwm8Regs.CMPB.bit.CMPB = 2000;
     EPwm8Regs.AQCTLA.bit.CAU = 1;
@@ -354,7 +388,23 @@ __interrupt void cpu_timer0_isr(void)
 // cpu_timer1_isr - CPU Timer1 ISR
 __interrupt void cpu_timer1_isr(void)
 {
+    if (direction == 1){
+        changingAngle += 1;
 
+    }
+    else {
+        changingAngle -= 1;
+    }
+
+    if (changingAngle >= 90){
+        direction = 0;
+    }
+    else if (changingAngle <= -90){
+        direction = 1;
+    }
+
+    setEPWM8A_RCServo(changingAngle);
+    setEPWM8B_RCServo(changingAngle);
 
     CpuTimer1.InterruptCount++;
 }
