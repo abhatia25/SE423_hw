@@ -26,12 +26,16 @@
 // The Launchpad's CPU Frequency set to 200 you should not change this value
 #define LAUNCHPAD_CPU_FREQUENCY 200
 
+volatile uint32_t Xint1Count=0;
+volatile uint32_t Xint2Count=0;
 
 // Interrupt Service Routines predefinition
 __interrupt void cpu_timer0_isr(void);
 __interrupt void cpu_timer1_isr(void);
 __interrupt void cpu_timer2_isr(void);
 __interrupt void SWI_isr(void);
+__interrupt void xint1_isr(void);
+__interrupt void xint2_isr(void);
 
 void setEPWM8A_RCServo(float);
 void setEPWM8B_RCServo(float);
@@ -271,6 +275,8 @@ void main(void)
     PieVectTable.SCID_TX_INT = &TXDINT_data_sent;
 
     PieVectTable.EMIF_ERROR_INT = &SWI_isr;
+    PieVectTable.XINT1_INT = &xint1_isr;
+    PieVectTable.XINT2_INT = &xint2_isr;
     EDIS;    // This is needed to disable write to EALLOW protected registers
 
 
@@ -318,10 +324,32 @@ void main(void)
     IER |= M_INT13;
     IER |= M_INT14;
 
+    PieCtrlRegs.PIEIER1.bit.INTx4 = 1;          // Enable PIE Group 1 INT4  Xint1
+    PieCtrlRegs.PIEIER1.bit.INTx5 = 1;          // Enable PIE Group 1 INT5  Xint2
     // Enable TINT0 in the PIE: Group 1 interrupt 7
     PieCtrlRegs.PIEIER1.bit.INTx7 = 1;
     // Enable SWI in the PIE: Group 12 interrupt 9
     PieCtrlRegs.PIEIER12.bit.INTx9 = 1;
+
+    EALLOW;
+    GpioCtrlRegs.GPAQSEL1.bit.GPIO4 = 2;        // XINT1 Qual using 6 samples
+    GpioCtrlRegs.GPACTRL.bit.QUALPRD0 = 0xFF;   // Each sampling window
+
+    GpioCtrlRegs.GPAQSEL1.bit.GPIO5 = 2;        // XINT2 Qual using 6 samples
+    GpioCtrlRegs.GPACTRL.bit.QUALPRD0 = 0xFF;   // Each sampling window is 510*SYSCLKOUT
+    EDIS;
+
+    // GPIO4 is XINT1, GPIO5 is XINT2
+    GPIO_SetupXINT1Gpio(6);
+    GPIO_SetupXINT2Gpio(7);
+
+    // Configure XINT1 XINT2
+    XintRegs.XINT1CR.bit.POLARITY = 0;          // Falling edge interrupt
+    XintRegs.XINT2CR.bit.POLARITY = 0;          // Falling edge interrupt
+
+    // Enable XINT1 and XINT2
+    XintRegs.XINT1CR.bit.ENABLE = 1;            // Enable XINT1
+    XintRegs.XINT2CR.bit.ENABLE = 1;            // Enable XINT2
 
     // Enable global Interrupts and higher priority real-time debug events
     EINT;  // Enable Global interrupt INTM
@@ -332,7 +360,7 @@ void main(void)
     while(1)
     {
         if (UARTPrint == 1 ) {
-            serial_printf(&SerialA,"Num Timer2:%ld Num SerialRX: %ld\r\n",CpuTimer2.InterruptCount,numRXA);
+            serial_printf(&SerialA,"NumXInt1=%ld,NumXInt2=%ld\r\n",Xint1Count,Xint2Count);
             UARTPrint = 0;
         }
     }
@@ -370,7 +398,8 @@ __interrupt void cpu_timer0_isr(void)
     //        PieCtrlRegs.PIEIFR12.bit.INTx9 = 1;  // Manually cause the interrupt for the SWI
     //    }
 
-    if ((numTimer0calls%250) == 0) {
+    if ((numTimer0calls%10) == 0) {
+        UARTPrint = 1;
         displayLEDletter(LEDdisplaynum);
         LEDdisplaynum++;
         if (LEDdisplaynum == 0xFFFF) {  // prevent roll over exception
@@ -420,6 +449,24 @@ __interrupt void cpu_timer2_isr(void)
     CpuTimer2.InterruptCount++;
 
     if ((CpuTimer2.InterruptCount % 50) == 0) {
-        UARTPrint = 1;
+        
     }
+}
+
+// xint1_isr - External Interrupt 1 ISR
+interrupt void xint1_isr(void)
+{
+    Xint1Count++;
+
+    // Acknowledge this interrupt to get more from group 1
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
+}
+
+// xint2_isr - External Interrupt 2 ISR
+interrupt void xint2_isr(void)
+{
+    Xint2Count++;
+
+    // Acknowledge this interrupt to get more from group 1
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 }
