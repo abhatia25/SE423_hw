@@ -49,7 +49,8 @@ uint16_t LEDdisplaynum = 0;
 
 float dutyCycle = 0.0;
 float changingAngle = -90.0;
-int16_t direction = 1;
+int16_t direction = 0;
+float randomAngle = 0.0;
 
 void setEPWM8A_RCServo(float angle){
     if (angle > 90){
@@ -79,6 +80,8 @@ void setEPWM8B_RCServo(float angle){
 
 void main(void)
 {
+    srand(time(NULL)); //AB: Seed random number generator
+    
     // PLL, WatchDog, enable Peripheral Clocks
     // This example function is found in the F2837xD_SysCtrl.c file.
     InitSysCtrl();
@@ -286,7 +289,7 @@ void main(void)
 
     // Configure CPU-Timer 0, 1, and 2 to interrupt every given period:
     // 200MHz CPU Freq,                       Period (in uSeconds)
-    ConfigCpuTimer(&CpuTimer0, LAUNCHPAD_CPU_FREQUENCY, 10000);
+    ConfigCpuTimer(&CpuTimer0, LAUNCHPAD_CPU_FREQUENCY, 1000);
     ConfigCpuTimer(&CpuTimer1, LAUNCHPAD_CPU_FREQUENCY, 10000);
     ConfigCpuTimer(&CpuTimer2, LAUNCHPAD_CPU_FREQUENCY, 40000);
 
@@ -397,14 +400,14 @@ __interrupt void cpu_timer0_isr(void)
     //    if ((numTimer0calls%50) == 0) {
     //        PieCtrlRegs.PIEIFR12.bit.INTx9 = 1;  // Manually cause the interrupt for the SWI
     //    }
-
-    if ((numTimer0calls%10) == 0) {
-        UARTPrint = 1;
-        displayLEDletter(LEDdisplaynum);
-        LEDdisplaynum++;
-        if (LEDdisplaynum == 0xFFFF) {  // prevent roll over exception
-            LEDdisplaynum = 0;
-        }
+    
+    //if ((numTimer0calls%10) == 0) {
+        //UARTPrint = 1;
+        //displayLEDletter(LEDdisplaynum);
+        //LEDdisplaynum++;
+        //if (LEDdisplaynum == 0xFFFF) {  // prevent roll over exception
+        //    LEDdisplaynum = 0;
+        //}
     }
 
     // Blink LaunchPad Red LED
@@ -417,7 +420,7 @@ __interrupt void cpu_timer0_isr(void)
 // cpu_timer1_isr - CPU Timer1 ISR
 __interrupt void cpu_timer1_isr(void)
 {
-    if (direction == 1){
+    /*if (direction == 1){
         changingAngle += 1;
 
     }
@@ -433,7 +436,12 @@ __interrupt void cpu_timer1_isr(void)
     }
 
     setEPWM8A_RCServo(changingAngle);
-    setEPWM8B_RCServo(changingAngle);
+    setEPWM8B_RCServo(changingAngle);*/
+
+    if (direction == 0){
+        randomAngle = (rand() % (90 - (-90) + 1)) + (-90);
+        direction = 1;
+    }
 
     CpuTimer1.InterruptCount++;
 }
