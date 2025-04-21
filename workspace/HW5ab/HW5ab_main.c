@@ -48,9 +48,9 @@ uint16_t UARTPrint = 0;
 uint16_t LEDdisplaynum = 0;
 
 float dutyCycle = 0.0;
-float changingAngle = -90.0;
-int16_t direction = 0;
+int16_t state = 0;
 float randomAngle = 0.0;
+float currentPosition = 0.0;
 
 void setEPWM8A_RCServo(float angle){
     if (angle > 90){
@@ -438,12 +438,20 @@ __interrupt void cpu_timer1_isr(void)
     setEPWM8A_RCServo(changingAngle);
     setEPWM8B_RCServo(changingAngle);*/
 
-    if (direction == 0){
+    if (state == 0){
         randomAngle = (rand() % (90 - (-90) + 1)) + (-90);
-        direction = 1;
+        setEPWM8A_RCServo(randomAngle);
+        state = 1;
     }
-
-    CpuTimer1.InterruptCount++;
+    else if (state == 1){
+        CpuTimer1.InterruptCount++;
+        //Add code for using joystick to move the servo
+        //Change the currentPosition variable. If pushbutton is pressed, change state to 2.
+    }
+    else if (state == 2){
+        //find difference between currentPosition and 0 and scale accordingly. 
+        //Print results to serial
+    }
 }
 
 // cpu_timer2_isr CPU Timer2 ISR
