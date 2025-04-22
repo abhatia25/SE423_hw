@@ -52,6 +52,9 @@ float dutyCycle = 0.0;
 int16_t state = 0;
 float randomAngle = 0.0;
 float currentPosition = 0.0;
+uint16_t x_raw_reading = 0;
+float x_scaled_reading = 0.0;
+float difference = 0.0;
 
 void setEPWM8A_RCServo(float angle){
     if (angle > 90){
@@ -385,7 +388,7 @@ void main(void)
     EDIS;
 
     // GPIO4 is XINT1, GPIO5 is XINT2
-    GPIO_SetupXINT1Gpio(6);
+    GPIO_SetupXINT1Gpio(4);
     GPIO_SetupXINT2Gpio(7);
 
     // Configure XINT1 XINT2
@@ -421,11 +424,6 @@ __interrupt void SWI_isr(void) {
     asm("       NOP");                    // Wait one cycle
     EINT;                                 // Clear INTM to enable interrupts
 
-
-
-    // Insert SWI ISR Code here.......
-
-
     numSWIcalls++;
 
     DINT;
@@ -439,19 +437,6 @@ __interrupt void cpu_timer0_isr(void)
 
     numTimer0calls++;
 
-    //    if ((numTimer0calls%50) == 0) {
-    //        PieCtrlRegs.PIEIFR12.bit.INTx9 = 1;  // Manually cause the interrupt for the SWI
-    //    }
-    
-    //if ((numTimer0calls%10) == 0) {
-        //UARTPrint = 1;
-        //displayLEDletter(LEDdisplaynum);
-        //LEDdisplaynum++;
-        //if (LEDdisplaynum == 0xFFFF) {  // prevent roll over exception
-        //    LEDdisplaynum = 0;
-        //}
-    }
-
     // Blink LaunchPad Red LED
     GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
 
@@ -462,60 +447,32 @@ __interrupt void cpu_timer0_isr(void)
 // cpu_timer1_isr - CPU Timer1 ISR
 __interrupt void cpu_timer1_isr(void)
 {
-    /*if (direction == 1){
-        changingAngle += 1;
-
-    }
-    else {
-        changingAngle -= 1;
-    }
-
-    if (changingAngle >= 90){
-        direction = 0;
-    }
-    else if (changingAngle <= -90){
-        direction = 1;
-    }
-
-    setEPWM8A_RCServo(changingAngle);
-    setEPWM8B_RCServo(changingAngle);*/
-
-    if (state == 0){
-        randomAngle = (rand() % (90 - (-90) + 1)) + (-90);
-        setEPWM8A_RCServo(randomAngle);
+    if (state == 0){ //AB: setup state (random angle)
+        randomAngle = (rand() % (90 - (-90) + 1)) + (-90); //AB: generate random angle between -90 and 90
+        setEPWM8A_RCServo(randomAngle); //AB: set servo to random angle
+        currentPosition = randomAngle; //AB: currentPosition used to know angle the servo is currently at
         state = 1;
     }
-    else if (state == 1){
-        CpuTimer1.InterruptCount++;
-        //Add code for using joystick to move the servo
-        //Change the currentPosition variable.
+    else if (state == 1){ //AB: joystick control state (mainly controlled in ADCA interrupt function)
+        CpuTimer1.InterruptCount++; //AB: to track how long it takes the player to get servo back to center
     }
-    else if (state == 2){
-        //find difference between currentPosition and 0 and scale accordingly. 
-        //Print results to serial
+    else if (state == 2){ //AB: end of game state (triggered by pushbutton to lock-in guess)
+        difference = fabs(currentPosition - 0); //AB: calculate absolute difference between final position and angle 0
+        UARTPrint = 1; //AB: print result to Serial
     }
 }
 
 // cpu_timer2_isr CPU Timer2 ISR
 __interrupt void cpu_timer2_isr(void)
 {
-
-
-    // Blink LaunchPad Blue LED
-    GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1;
-
     CpuTimer2.InterruptCount++;
-
-    if ((CpuTimer2.InterruptCount % 50) == 0) {
-        
-    }
 }
 
 // xint1_isr - External Interrupt 1 ISR
 interrupt void xint1_isr(void)
 {
     Xint1Count++;
-
+    state = 0; //AB: pushing this pushbutton restarts the game
     // Acknowledge this interrupt to get more from group 1
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 }
@@ -524,60 +481,31 @@ interrupt void xint1_isr(void)
 interrupt void xint2_isr(void)
 {
     Xint2Count++;
-    state = 2;
+    state = 2; //pushing this pushbutton locks in the player's guess
     // Acknowledge this interrupt to get more from group 1
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 }
 __interrupt void ADCA_ISR (void)
 {
-    pr_raw_reading = AdcaResultRegs.ADCRESULT0;
-    x_raw_reading = AdcaResultRegs.ADCRESULT2;
-    y_raw_reading = AdcaResultRegs.ADCRESULT1;
+    if (state == 1){
+        x_raw_reading = AdcaResultRegs.ADCRESULT2;
+        //y_raw_reading = AdcaResultRegs.ADCRESULT1;
+    
+        //AB: convert ADCINA4 to volts
+        x_scaled_reading = x_raw_reading * (3.0/4096.0);
+        //y_scaled_reading = y_raw_reading * (3.0/4096.0);
 
-    // Here covert ADCINA4 to volts
-    pr_scaled_reading = pr_raw_reading * (3.0/4096.0);
-    x_scaled_reading = x_raw_reading * (3.0/4096.0);
-    y_scaled_reading = y_raw_reading * (3.0/4096.0);
-
-    EPwm12Regs.CMPA.bit.CMPA = (pr_scaled_reading / 3.3) * EPwm12Regs.TBPRD;
-
-    // Print ADCINA4s voltage value to TeraTerm every 100ms by setting UARTPrint to one every 100th
-    //time in this function.
-    adcaCalls++;
-    if (adcaCalls % 100 == 0){
-        UARTPrint = 1;
-        GpioDataRegs.GPCCLEAR.bit.GPIO95 = 1;
-        GpioDataRegs.GPECLEAR.bit.GPIO130 = 1;
-        GpioDataRegs.GPACLEAR.bit.GPIO25 = 1;
-        GpioDataRegs.GPACLEAR.bit.GPIO27 = 1;
-        GpioDataRegs.GPECLEAR.bit.GPIO157 = 1;
-
+        //AB: if joystick pointing to left, servo goes back; if pointing to right, servo goes forward
         if (x_scaled_reading < 0.5){
-            //turn on LED 10
-            GpioDataRegs.GPASET.bit.GPIO27 = 1;
+            currentPosition -= 1;
         }
         else if (x_scaled_reading > 2.5){
-            //turn on LED 6
-            GpioDataRegs.GPESET.bit.GPIO130 = 1;
-        }
-        else {
-            //turn on LED 8
-            GpioDataRegs.GPASET.bit.GPIO25 = 1;
+            currentPosition += 1;
         }
 
-        if (y_scaled_reading < 0.5){
-            //turn on LED 13
-            GpioDataRegs.GPESET.bit.GPIO157 = 1;
-        }
-        else if (y_scaled_reading > 2.5){
-            //turn on LED 3
-            GpioDataRegs.GPCSET.bit.GPIO95 = 1;
-        }
-        else {
-            //turn on LED 8
-            GpioDataRegs.GPASET.bit.GPIO25 = 1;
-        }
+        setEPWM8A_RCServo(currentPosition);
     }
+    
     AdcaRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 }
