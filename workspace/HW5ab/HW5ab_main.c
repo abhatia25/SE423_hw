@@ -36,6 +36,7 @@ __interrupt void cpu_timer2_isr(void);
 __interrupt void SWI_isr(void);
 __interrupt void xint1_isr(void);
 __interrupt void xint2_isr(void);
+__interrupt void ADCA_ISR(void);
 
 void setEPWM8A_RCServo(float);
 void setEPWM8B_RCServo(float);
@@ -276,7 +277,7 @@ void main(void)
     PieVectTable.SCIB_TX_INT = &TXBINT_data_sent;
     PieVectTable.SCIC_TX_INT = &TXCINT_data_sent;
     PieVectTable.SCID_TX_INT = &TXDINT_data_sent;
-
+    PieVectTable.ADCA1_INT = &ADCA_ISR;
     PieVectTable.EMIF_ERROR_INT = &SWI_isr;
     PieVectTable.XINT1_INT = &xint1_isr;
     PieVectTable.XINT2_INT = &xint2_isr;
@@ -315,6 +316,47 @@ void main(void)
     EPwm8Regs.AQCTLB.bit.CBU = 1;
     EPwm8Regs.AQCTLB.bit.ZRO = 2;
     EPwm8Regs.TBPHS.bit.TBPHS = 0;
+
+    EALLOW;
+    EPwm4Regs.ETSEL.bit.SOCAEN = 0; // Disable SOC on A group
+    EPwm4Regs.TBCTL.bit.CTRMODE = 3; // freeze counter
+    EPwm4Regs.ETSEL.bit.SOCASEL = 2; // Select Event when counter equal to PRD
+    EPwm4Regs.ETPS.bit.SOCAPRD = 1; // Generate pulse on 1st event (pulse is the same as trigger)
+    EPwm4Regs.TBCTR = 0x0; // Clear counter
+    EPwm4Regs.TBPHS.bit.TBPHS = 0x0000; // Phase is 0
+    EPwm4Regs.TBCTL.bit.PHSEN = 0; // Disable phase loading
+    EPwm4Regs.TBCTL.bit.CLKDIV = 0; // divide by 1 50Mhz Clock
+    EPwm4Regs.TBPRD = 50000; // Set Period to 1ms sample. Input clock is 50MHz.
+    // Notice here that we are not setting CMPA or CMPB because we are not using the PWM signal
+    EPwm4Regs.ETSEL.bit.SOCAEN = 1; //enable SOCA
+    EPwm4Regs.TBCTL.bit.CTRMODE = 0; //unfreeze, and enter up count mode
+    EDIS;
+
+    EALLOW;
+    //write configurations for ADCA
+    AdcaRegs.ADCCTL2.bit.PRESCALE = 6; //set ADCCLK divider to /4
+    AdcSetMode(ADC_ADCA, ADC_RESOLUTION_12BIT, ADC_SIGNALMODE_SINGLE); //read calibration settings
+    //Set pulse positions to late
+    AdcaRegs.ADCCTL1.bit.INTPULSEPOS = 1;
+    //power up the ADCs
+    AdcaRegs.ADCCTL1.bit.ADCPWDNZ = 1;
+    //delay for 1ms to allow ADC time to power up
+    DELAY_US(1000);
+    //Select the channels to convert and end of conversion flag
+    //ADCA
+    AdcaRegs.ADCSOC0CTL.bit.CHSEL = 4;//SOC0 will convert Channel you choose Does not have to be A0
+    AdcaRegs.ADCSOC0CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
+    AdcaRegs.ADCSOC0CTL.bit.TRIGSEL = 11;// EPWM4 ADCSOCA
+    AdcaRegs.ADCSOC1CTL.bit.CHSEL = 2;//SOC1 will conv Channel you choose Does not have to be A1
+    AdcaRegs.ADCSOC1CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
+    AdcaRegs.ADCSOC1CTL.bit.TRIGSEL = 11;// EPWM4 ADCSOCA
+    AdcaRegs.ADCSOC2CTL.bit.CHSEL = 3;//SOC2 will conv Channel you choose Does not have to be A2
+    AdcaRegs.ADCSOC2CTL.bit.ACQPS = 99; //sample window is acqps + 1 SYSCLK cycles = 500ns
+    AdcaRegs.ADCSOC2CTL.bit.TRIGSEL = 11;// EPWM4 ADCSOCA
+    AdcaRegs.ADCINTSEL1N2.bit.INT1SEL = 2;//set to last or only SOC that is converted and it will set INT1 flag ADCA1
+    AdcaRegs.ADCINTSEL1N2.bit.INT1E = 1; //enable INT1 flag
+    AdcaRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //make sure INT1 flag is cleared
+    EDIS;
 
 
     // Enable CPU int1 which is connected to CPU-Timer 0, CPU int13
@@ -446,7 +488,7 @@ __interrupt void cpu_timer1_isr(void)
     else if (state == 1){
         CpuTimer1.InterruptCount++;
         //Add code for using joystick to move the servo
-        //Change the currentPosition variable. If pushbutton is pressed, change state to 2.
+        //Change the currentPosition variable.
     }
     else if (state == 2){
         //find difference between currentPosition and 0 and scale accordingly. 
@@ -482,7 +524,60 @@ interrupt void xint1_isr(void)
 interrupt void xint2_isr(void)
 {
     Xint2Count++;
-
+    state = 2;
     // Acknowledge this interrupt to get more from group 1
+    PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
+}
+__interrupt void ADCA_ISR (void)
+{
+    pr_raw_reading = AdcaResultRegs.ADCRESULT0;
+    x_raw_reading = AdcaResultRegs.ADCRESULT2;
+    y_raw_reading = AdcaResultRegs.ADCRESULT1;
+
+    // Here covert ADCINA4 to volts
+    pr_scaled_reading = pr_raw_reading * (3.0/4096.0);
+    x_scaled_reading = x_raw_reading * (3.0/4096.0);
+    y_scaled_reading = y_raw_reading * (3.0/4096.0);
+
+    EPwm12Regs.CMPA.bit.CMPA = (pr_scaled_reading / 3.3) * EPwm12Regs.TBPRD;
+
+    // Print ADCINA4s voltage value to TeraTerm every 100ms by setting UARTPrint to one every 100th
+    //time in this function.
+    adcaCalls++;
+    if (adcaCalls % 100 == 0){
+        UARTPrint = 1;
+        GpioDataRegs.GPCCLEAR.bit.GPIO95 = 1;
+        GpioDataRegs.GPECLEAR.bit.GPIO130 = 1;
+        GpioDataRegs.GPACLEAR.bit.GPIO25 = 1;
+        GpioDataRegs.GPACLEAR.bit.GPIO27 = 1;
+        GpioDataRegs.GPECLEAR.bit.GPIO157 = 1;
+
+        if (x_scaled_reading < 0.5){
+            //turn on LED 10
+            GpioDataRegs.GPASET.bit.GPIO27 = 1;
+        }
+        else if (x_scaled_reading > 2.5){
+            //turn on LED 6
+            GpioDataRegs.GPESET.bit.GPIO130 = 1;
+        }
+        else {
+            //turn on LED 8
+            GpioDataRegs.GPASET.bit.GPIO25 = 1;
+        }
+
+        if (y_scaled_reading < 0.5){
+            //turn on LED 13
+            GpioDataRegs.GPESET.bit.GPIO157 = 1;
+        }
+        else if (y_scaled_reading > 2.5){
+            //turn on LED 3
+            GpioDataRegs.GPCSET.bit.GPIO95 = 1;
+        }
+        else {
+            //turn on LED 8
+            GpioDataRegs.GPASET.bit.GPIO25 = 1;
+        }
+    }
+    AdcaRegs.ADCINTFLGCLR.bit.ADCINT1 = 1; //clear interrupt flag
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 }
