@@ -42,7 +42,7 @@ void setEPWM8A_RCServo(float);
 void setEPWM8B_RCServo(float);
 
 // Count variables
-uint32_t numTimer0calls = 0;
+uint32_t numTimer1calls = 0;
 uint32_t numSWIcalls = 0;
 extern uint32_t numRXA;
 uint16_t UARTPrint = 0;
@@ -378,6 +378,7 @@ void main(void)
     PieCtrlRegs.PIEIER1.bit.INTx7 = 1;
     // Enable SWI in the PIE: Group 12 interrupt 9
     PieCtrlRegs.PIEIER12.bit.INTx9 = 1;
+    //PieCtrlRegs.PIEIER1.bit.INTx1 = 1;
 
     EALLOW;
     GpioCtrlRegs.GPAQSEL1.bit.GPIO4 = 2;        // XINT1 Qual using 6 samples
@@ -408,7 +409,7 @@ void main(void)
     while(1)
     {
         if (UARTPrint == 1 ) {
-            serial_printf(&SerialA,"NumXInt1=%ld,NumXInt2=%ld\r\n",Xint1Count,Xint2Count);
+            serial_printf(&SerialA,"Score: %ld,Time: %ld\r\n",difference,numTimer1calls);
             UARTPrint = 0;
         }
     }
@@ -435,7 +436,7 @@ __interrupt void cpu_timer0_isr(void)
 {
     CpuTimer0.InterruptCount++;
 
-    numTimer0calls++;
+    //numTimer0calls++;
 
     // Blink LaunchPad Red LED
     GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1;
@@ -454,7 +455,7 @@ __interrupt void cpu_timer1_isr(void)
         state = 1;
     }
     else if (state == 1){ //AB: joystick control state (mainly controlled in ADCA interrupt function)
-        CpuTimer1.InterruptCount++; //AB: to track how long it takes the player to get servo back to center
+        numTimer1calls++; //AB: to track how long it takes the player to get servo back to center
     }
     else if (state == 2){ //AB: end of game state (triggered by pushbutton to lock-in guess)
         difference = fabs(currentPosition - 0); //AB: calculate absolute difference between final position and angle 0
@@ -473,6 +474,10 @@ interrupt void xint1_isr(void)
 {
     Xint1Count++;
     state = 0; //AB: pushing this pushbutton restarts the game
+    randomAngle = 0.0;
+    currentPosition = 0.0;
+    difference = 0.0;
+    numTimer1calls = 0;
     // Acknowledge this interrupt to get more from group 1
     PieCtrlRegs.PIEACK.all = PIEACK_GROUP1;
 }
