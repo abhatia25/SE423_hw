@@ -2,6 +2,7 @@
 // FILE:   HWstarter_main.c
 //
 // TITLE:  HW Starter
+// NETID: adityab7
 //#############################################################################
 
 // Included Files
@@ -57,6 +58,7 @@ float x_scaled_reading = 0.0;
 float difference = 0.0;
 float seconds = 0.0;
 
+//EPWM functions developed from previous homework assignments to set the servos
 void setEPWM8A_RCServo(float angle){
     if (angle > 90){
         angle = 90;
@@ -477,17 +479,17 @@ __interrupt void cpu_timer1_isr(void)
         setEPWM8A_RCServo(currentPosition);
     }
     else if (state == 2){ //AB: end of game state (triggered by pushbutton to lock-in guess)
-        if (currentPosition > 90){
+        if (currentPosition > 90){ //AB: saturate currentPosition to same limits as servos
             currentPosition = 90;
         }
         else if (currentPosition < -90){
             currentPosition = -90;
         }
         difference = fabs(currentPosition - 0); //AB: calculate absolute difference between final position and angle 0
-        seconds = numTimer1calls / 100.0;
+        seconds = numTimer1calls / 100.0; //AB: convert into seconds for display in Serial
         UARTPrint = 1; //AB: print result to Serial
-        setEPWM8A_RCServo(0);
-        state = 0;
+        setEPWM8A_RCServo(0); //AB: set servo back to 0
+        state = 0; //AB: start game again
     }
 }
 
