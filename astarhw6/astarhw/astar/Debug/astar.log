@@ -1,0 +1,14 @@
+﻿  stdafx.cpp
+  astar.cpp
+C:\adityab7\SE423_hw\astarhw6\astarhw\astar\astar.cpp(568,3): warning C4996: 'scanf': This function or variable may be unsafe. Consider using scanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\adityab7\SE423_hw\astarhw6\astarhw\astar\astar.cpp(576,5): warning C4996: 'scanf': This function or variable may be unsafe. Consider using scanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\adityab7\SE423_hw\astarhw6\astarhw\astar\astar.cpp(578,5): warning C4996: 'scanf': This function or variable may be unsafe. Consider using scanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\adityab7\SE423_hw\astarhw6\astarhw\astar\astar.cpp(580,5): warning C4996: 'scanf': This function or variable may be unsafe. Consider using scanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\adityab7\SE423_hw\astarhw6\astarhw\astar\astar.cpp(582,5): warning C4996: 'scanf': This function or variable may be unsafe. Consider using scanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\adityab7\SE423_hw\astarhw6\astarhw\astar\astar.cpp(764,5): warning C4996: 'scanf': This function or variable may be unsafe. Consider using scanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\adityab7\SE423_hw\astarhw6\astarhw\astar\astar.cpp(766,5): warning C4996: 'scanf': This function or variable may be unsafe. Consider using scanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\adityab7\SE423_hw\astarhw6\astarhw\astar\astar.cpp(768,5): warning C4996: 'scanf': This function or variable may be unsafe. Consider using scanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+C:\adityab7\SE423_hw\astarhw6\astarhw\astar\astar.cpp(770,5): warning C4996: 'scanf': This function or variable may be unsafe. Consider using scanf_s instead. To disable deprecation, use _CRT_SECURE_NO_WARNINGS. See online help for details.
+  pQueue.cpp
+  Generating Code...
+  astar.vcxproj -> C:\adityab7\SE423_hw\astarhw6\astarhw\Debug\astar.exe
